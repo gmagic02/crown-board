@@ -94,3 +94,4 @@ The app uses Tailwind CSS with a dark theme optimized for Whop's iframe environm
 Private - Whop App Store
 
 
+
