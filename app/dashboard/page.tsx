@@ -25,7 +25,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-100 mb-4">Whop Leaderboards</h1>
+          <h1 className="text-2xl font-bold text-gray-100 mb-4">Crownboard</h1>
           <p className="text-gray-400">Please open this app inside Whop.</p>
         </div>
       </div>
@@ -53,10 +53,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     <div className="min-h-screen bg-gray-900 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-3xl md:text-4xl font-bold text-gray-100 mb-4">
-          Whop Leaderboards
+          Crownboard
         </h1>
         <p className="text-gray-400 text-lg mb-6 max-w-2xl">
-          Whop Leaderboards helps creators boost engagement and revenue by visually ranking top supporters, affiliates, and members in real time.
+          Crownboard helps creators rank their top supporters, affiliates, and most active members in real time.
         </p>
 
         {/* Date Range Filter */}

@@ -1,4 +1,4 @@
-# Whop Leaderboards
+# Crownboard
 
 A Next.js 16 App Router application for displaying live leaderboards for Whop businesses. This app runs inside Whop's iframe and uses Whop authentication.
 
