@@ -1,5 +1,3 @@
-import { Headers } from 'next/headers'
-
 /**
  * Whop API client configuration
  */
