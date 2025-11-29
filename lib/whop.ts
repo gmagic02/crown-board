@@ -250,13 +250,20 @@ function getMockPayments(): Payment[] {
 /**
  * Fetches payment records for a Whop business
  * 
- * @param companyIdOrUserId - The company ID (preferred) or user ID as fallback
+ * @param whopUserId - The Whop user ID (optional)
+ * @param companyId - The company ID (optional, preferred over whopUserId)
  * @returns Array of payment records
  */
-export async function fetchPayments(companyIdOrUserId: string): Promise<Payment[]> {
+export async function fetchPayments(whopUserId?: string, companyId?: string): Promise<Payment[]> {
+  // No Whop context available (likely not inside Whop) — return mock data
+  if (!whopUserId && !companyId) {
+    return getMockPayments()
+  }
+
   try {
     const client = getWhopClient()
-    const data = await client.fetch(`payments?company_id=${companyIdOrUserId}`)
+    const idToUse = companyId || whopUserId
+    const data = await client.fetch(`payments?company_id=${idToUse}`)
     
     // Normalize API response to Payment format
     // API returns: { data: [{ user, amount, date, product, ... }] }
@@ -319,13 +326,20 @@ function getMockAffiliates(): Affiliate[] {
 /**
  * Fetches affiliate records for a Whop business
  * 
- * @param companyIdOrUserId - The company ID (preferred) or user ID as fallback
+ * @param whopUserId - The Whop user ID (optional)
+ * @param companyId - The company ID (optional, preferred over whopUserId)
  * @returns Array of affiliate records
  */
-export async function fetchAffiliates(companyIdOrUserId: string): Promise<Affiliate[]> {
+export async function fetchAffiliates(whopUserId?: string, companyId?: string): Promise<Affiliate[]> {
+  // No Whop context available (likely not inside Whop) — return mock data
+  if (!whopUserId && !companyId) {
+    return getMockAffiliates()
+  }
+
   try {
     const client = getWhopClient()
-    const data = await client.fetch(`affiliates?company_id=${companyIdOrUserId}`)
+    const idToUse = companyId || whopUserId
+    const data = await client.fetch(`affiliates?company_id=${idToUse}`)
     
     // Normalize API response to Affiliate format
     // API returns: { data: [{ affiliate, revenue, ... }] }
@@ -422,13 +436,20 @@ function getMockMembers(): Membership[] {
 /**
  * Fetches membership records for a Whop business
  * 
- * @param companyIdOrUserId - The company ID (preferred) or user ID as fallback
+ * @param whopUserId - The Whop user ID (optional)
+ * @param companyId - The company ID (optional, preferred over whopUserId)
  * @returns Array of membership records
  */
-export async function fetchMembers(companyIdOrUserId: string): Promise<Membership[]> {
+export async function fetchMembers(whopUserId?: string, companyId?: string): Promise<Membership[]> {
+  // No Whop context available (likely not inside Whop) — return mock data
+  if (!whopUserId && !companyId) {
+    return getMockMembers()
+  }
+
   try {
     const client = getWhopClient()
-    const data = await client.fetch(`memberships?company_id=${companyIdOrUserId}`)
+    const idToUse = companyId || whopUserId
+    const data = await client.fetch(`memberships?company_id=${idToUse}`)
     
     // Normalize API response to Membership format
     // API returns: { data: [{ user, joined_at, status, ... }] }

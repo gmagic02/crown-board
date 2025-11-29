@@ -20,24 +20,17 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const whopUser = await getWhopUser(headersList)
   const params = await searchParams
   
-  // If no Whop user token, show message instead of error
-  if (!whopUser) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-100 mb-4">Crownboard</h1>
-          <p className="text-gray-400">Please open this app inside Whop.</p>
-        </div>
-      </div>
-    )
-  }
+  const isWhopContext = !!whopUser
+  
+  // Extract user/company IDs if available
+  const whopUserId = whopUser?.whopUserId
+  const companyId = whopUser?.companyId
 
-  // Fetch data - use companyId if available, otherwise fall back to whopUserId
-  const companyId = whopUser.companyId || whopUser.whopUserId
+  // Fetch data - pass IDs if available, functions will use mock data if not
   const [payments, affiliates, memberships] = await Promise.all([
-    fetchPayments(companyId),
-    fetchAffiliates(companyId),
-    fetchMembers(companyId),
+    fetchPayments(whopUserId, companyId),
+    fetchAffiliates(whopUserId, companyId),
+    fetchMembers(whopUserId, companyId),
   ])
 
   // Determine active tab and date range from search params
@@ -55,6 +48,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         <h1 className="text-3xl md:text-4xl font-bold text-gray-100 mb-4">
           Crownboard
         </h1>
+        {!isWhopContext && (
+          <div className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
+            You're viewing demo data. Install and open Crownboard inside Whop to see your real community stats.
+          </div>
+        )}
         <p className="text-gray-400 text-lg mb-6 max-w-2xl">
           Crownboard helps creators rank their top supporters, affiliates, and most active members in real time.
         </p>
