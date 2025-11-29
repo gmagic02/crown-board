@@ -22,9 +22,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   
   const isWhopContext = !!whopUser
   
-  // Extract user/company IDs if available
-  const whopUserId = whopUser?.whopUserId
-  const companyId = whopUser?.companyId
+  // Extract user/company IDs if available, normalize null to undefined
+  const whopUserId = whopUser?.whopUserId ?? undefined
+  const companyId = whopUser?.companyId ?? undefined
 
   // Fetch data - pass IDs if available, functions will use mock data if not
   const [payments, affiliates, memberships] = await Promise.all([
