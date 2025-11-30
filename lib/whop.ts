@@ -57,7 +57,17 @@ export interface Membership {
 }
 
 /**
- * Extracts Whop user information from request headers
+ * Verifies a Whop request and extracts session information
+ * 
+ * @param headers - Next.js headers object
+ * @returns WhopUser object with whopUserId, companyId, email, and raw payload, or null if token is missing/invalid
+ */
+export async function verifyRequest(headers: Headers): Promise<WhopUser | null> {
+  return getWhopUser(headers)
+}
+
+/**
+ * Verifies and extracts Whop user information from request headers
  * 
  * @param headers - Next.js headers object
  * @returns WhopUser object with whopUserId, companyId, email, and raw payload, or null if token is missing/invalid
@@ -108,11 +118,22 @@ export async function getWhopUser(headers: Headers): Promise<WhopUser | null> {
       return null
     }
 
-    // Extract company_id (optional)
-    const companyId = payloadData.company_id || null
+    // Extract company_id from various possible locations in the token
+    // Whop tokens may have company_id at the root, or nested in install object
+    const companyId = 
+      payloadData.company_id || 
+      payloadData.install?.company_id || 
+      payloadData.companyId ||
+      null
 
     // Extract email (optional)
     const email = payloadData.email || null
+
+    // Verify we have at least a user ID (required)
+    // Company ID is preferred but not always present
+    if (!whopUserId) {
+      return null
+    }
 
     return {
       whopUserId: String(whopUserId),

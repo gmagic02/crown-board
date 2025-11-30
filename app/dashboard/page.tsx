@@ -17,12 +17,24 @@ interface DashboardPageProps {
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const headersList = await headers()
-  const whopUser = await getWhopUser(headersList)
   const params = await searchParams
   
-  const isWhopContext = !!whopUser
+  // Check for Whop token presence - this is the definitive indicator of Whop context
+  // If x-whop-user-token header exists, we're inside Whop (regardless of token validity)
+  const whopToken = headersList.get('x-whop-user-token')
+  const hasWhopToken = !!whopToken
+  
+  // Verify and extract Whop session data (may be null if token is invalid, but token presence = Whop context)
+  const whopUser = await getWhopUser(headersList)
+  
+  // Determine if we're in a Whop context:
+  // - If token exists → we're inside Whop iframe → use real data (hide demo banner)
+  // - If NO token → direct browser access → show demo banner
+  // Demo mode is ONLY used when there is NO token header at all
+  const isWhopContext = hasWhopToken
   
   // Extract user/company IDs if available, normalize null to undefined
+  // Prioritize companyId over whopUserId for API calls
   const whopUserId = whopUser?.whopUserId ?? undefined
   const companyId = whopUser?.companyId ?? undefined
 
