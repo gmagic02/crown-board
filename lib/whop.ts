@@ -67,6 +67,71 @@ export async function verifyRequest(headers: Headers): Promise<WhopUser | null> 
 }
 
 /**
+ * Verifies Whop token and extracts company/tenant context
+ * This is the main function to use for verifying Whop sessions
+ * 
+ * @param headers - Next.js headers object
+ * @returns Object with companyId, whopUserId, and session data, or null if invalid
+ */
+export async function verifyWhopTokenOrRequest(headers: Headers): Promise<{
+  companyId: string
+  whopUserId: string
+  email: string | null
+  raw: any
+} | null> {
+  const whopUser = await getWhopUser(headers)
+  
+  if (!whopUser) {
+    return null
+  }
+  
+  // Extract companyId from various possible locations
+  const companyId = 
+    whopUser.companyId ||
+    whopUser.raw?.company_id ||
+    whopUser.raw?.install?.company_id ||
+    whopUser.raw?.tenantId ||
+    null
+  
+  // We require both whopUserId and companyId for a valid session
+  if (!whopUser.whopUserId || !companyId) {
+    return null
+  }
+  
+  return {
+    companyId: String(companyId),
+    whopUserId: whopUser.whopUserId,
+    email: whopUser.email,
+    raw: whopUser.raw,
+  }
+}
+
+/**
+ * Loads real Crownboard stats for a specific company
+ * 
+ * @param companyId - The Whop company/tenant ID
+ * @returns Object containing payments, affiliates, and memberships for the company
+ */
+export async function loadCrownboardStatsForCompany(companyId: string): Promise<{
+  payments: Payment[]
+  affiliates: Affiliate[]
+  memberships: Membership[]
+}> {
+  // Fetch real data from Whop API using the companyId
+  const [payments, affiliates, memberships] = await Promise.all([
+    fetchPayments(undefined, companyId),
+    fetchAffiliates(undefined, companyId),
+    fetchMembers(undefined, companyId),
+  ])
+  
+  return {
+    payments,
+    affiliates,
+    memberships,
+  }
+}
+
+/**
  * Verifies and extracts Whop user information from request headers
  * 
  * @param headers - Next.js headers object

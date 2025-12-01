@@ -1,6 +1,6 @@
 import { headers } from 'next/headers'
 import Link from 'next/link'
-import { getWhopUser, fetchPayments, fetchAffiliates, fetchMembers } from '@/lib/whop'
+import { verifyWhopTokenOrRequest, loadCrownboardStatsForCompany } from '@/lib/whop'
 import {
   getTopSpenders,
   getTopAffiliates,
@@ -9,62 +9,96 @@ import {
 } from '@/lib/leaderboard'
 import LeaderboardWithWinner from '@/components/LeaderboardWithWinner'
 
+export const dynamic = 'force-dynamic'
+
 type TabType = 'spenders' | 'affiliates' | 'active'
 
 interface DashboardPageProps {
   searchParams: Promise<{ tab?: string; range?: string }>
 }
 
-export default async function DashboardPage({ searchParams }: DashboardPageProps) {
-  const headersList = await headers()
-  const params = await searchParams
-  
-  // Check for Whop token presence - this is the definitive indicator of Whop context
-  // If x-whop-user-token header exists, we're inside Whop (regardless of token validity)
-  const whopToken = headersList.get('x-whop-user-token')
-  const hasWhopToken = !!whopToken
-  
-  // Verify and extract Whop session data (may be null if token is invalid, but token presence = Whop context)
-  const whopUser = await getWhopUser(headersList)
-  
-  // Determine if we're in a Whop context:
-  // - If token exists → we're inside Whop iframe → use real data (hide demo banner)
-  // - If NO token → direct browser access → show demo banner
-  // Demo mode is ONLY used when there is NO token header at all
-  const isWhopContext = hasWhopToken
-  
-  // Extract user/company IDs if available, normalize null to undefined
-  // Prioritize companyId over whopUserId for API calls
-  const whopUserId = whopUser?.whopUserId ?? undefined
-  const companyId = whopUser?.companyId ?? undefined
+function ErrorState({ message }: { message: string }) {
+  return (
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+      <div className="text-center max-w-md">
+        <h1 className="text-2xl font-bold text-gray-100 mb-4">Crownboard</h1>
+        <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4 mb-4">
+          <p className="text-red-200 text-sm">{message}</p>
+        </div>
+        <p className="text-gray-400 text-sm">
+          Please ensure you're opening Crownboard from within Whop.
+        </p>
+      </div>
+    </div>
+  )
+}
 
-  // Fetch data - pass IDs if available, functions will use mock data if not
-  const [payments, affiliates, memberships] = await Promise.all([
-    fetchPayments(whopUserId, companyId),
-    fetchAffiliates(whopUserId, companyId),
-    fetchMembers(whopUserId, companyId),
-  ])
-
-  // Determine active tab and date range from search params
-  const activeTab: TabType = (params.tab as TabType) || 'spenders'
-  const dateRange: DateRange = (params.range as DateRange) || 'all'
-
-  // Calculate leaderboards with date range filter
-  const topSpenders = getTopSpenders(payments, dateRange)
-  const topAffiliates = getTopAffiliates(payments, dateRange)
-  const mostActive = getMostActiveMembers(memberships, dateRange)
-
+function DemoState({ searchParams }: { searchParams: Promise<{ tab?: string; range?: string }> }) {
   return (
     <div className="min-h-screen bg-gray-900 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-3xl md:text-4xl font-bold text-gray-100 mb-4">
           Crownboard
         </h1>
-        {!isWhopContext && (
-          <div className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
-            You're viewing demo data. Install and open Crownboard inside Whop to see your real community stats.
+        <div className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
+          You're viewing demo data. Install and open Crownboard inside Whop to see your real community stats.
+        </div>
+        <p className="text-gray-400 text-lg mb-6 max-w-2xl">
+          Crownboard helps creators rank their top supporters, affiliates, and most active members in real time.
+        </p>
+        <div className="bg-gray-800 rounded-lg p-6 shadow-lg">
+          <div className="text-center py-12 text-gray-400">
+            <p>Install Crownboard in your Whop business to get started.</p>
           </div>
-        )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+  const headersList = await headers()
+  const params = await searchParams
+  
+  // 1) Get Whop token from headers
+  const token = headersList.get('x-whop-user-token')
+  
+  // 2) If there is no token at all, this is NOT being opened inside Whop → show demo view
+  if (!token) {
+    return <DemoState searchParams={searchParams} />
+  }
+  
+  // 3) If there is a token, verify it and extract the tenant/company context
+  const session = await verifyWhopTokenOrRequest(headersList)
+  
+  // Extract companyId from verified session
+  const companyId = session?.companyId ?? null
+  
+  // 4) If verification fails or we can't resolve a tenant, show error instead of demo
+  if (!session || !companyId) {
+    console.error('Crownboard Whop session has no company/tenant id', session)
+    return <ErrorState message="Missing Whop company context. Please ensure you're opening Crownboard from within Whop." />
+  }
+  
+  // 5) Using companyId, load REAL data for this creator from Whop API
+  const stats = await loadCrownboardStatsForCompany(companyId)
+  
+  // Determine active tab and date range from search params
+  const activeTab: TabType = (params.tab as TabType) || 'spenders'
+  const dateRange: DateRange = (params.range as DateRange) || 'all'
+
+  // Calculate leaderboards with date range filter using REAL data
+  const topSpenders = getTopSpenders(stats.payments, dateRange)
+  const topAffiliates = getTopAffiliates(stats.payments, dateRange)
+  const mostActive = getMostActiveMembers(stats.memberships, dateRange)
+
+  // Render the real dashboard with actual creator data
+  return (
+    <div className="min-h-screen bg-gray-900 p-4 md:p-8">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-3xl md:text-4xl font-bold text-gray-100 mb-4">
+          Crownboard
+        </h1>
         <p className="text-gray-400 text-lg mb-6 max-w-2xl">
           Crownboard helps creators rank their top supporters, affiliates, and most active members in real time.
         </p>
