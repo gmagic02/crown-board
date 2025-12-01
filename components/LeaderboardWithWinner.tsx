@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { LeaderboardEntry } from '@/lib/leaderboard'
+import type { LeaderboardEntry } from '@/lib/whop/data'
 import LeaderboardTable from './LeaderboardTable'
 
 interface LeaderboardWithWinnerProps {
@@ -12,6 +12,7 @@ interface LeaderboardWithWinnerProps {
   tab?: string
   range?: string
   companyId?: string
+  randomWinnerPool?: LeaderboardEntry[]
 }
 
 export default function LeaderboardWithWinner({
@@ -22,15 +23,18 @@ export default function LeaderboardWithWinner({
   tab = 'spenders',
   range = 'all',
   companyId = 'unknown',
+  randomWinnerPool,
 }: LeaderboardWithWinnerProps) {
   const [winner, setWinner] = useState<LeaderboardEntry | null>(null)
   const [showModal, setShowModal] = useState(false)
 
   const pickRandomWinner = () => {
-    if (entries.length === 0) return
+    // Use randomWinnerPool if provided, otherwise fall back to current entries
+    const pool = randomWinnerPool && randomWinnerPool.length > 0 ? randomWinnerPool : entries
+    if (pool.length === 0) return
 
-    const randomIndex = Math.floor(Math.random() * entries.length)
-    const selectedWinner = entries[randomIndex]
+    const randomIndex = Math.floor(Math.random() * pool.length)
+    const selectedWinner = pool[randomIndex]
     setWinner(selectedWinner)
     setShowModal(true)
   }
@@ -45,16 +49,16 @@ export default function LeaderboardWithWinner({
     // Create CSV headers
     const headers = ['Rank', 'Name', 'Amount', 'Count']
     
-    // Create CSV rows
-    const rows = entries.map((entry) => {
-      const amount = showAmount && entry.amount !== undefined 
-        ? entry.amount.toFixed(2) 
+    // Create CSV rows with rank numbers
+    const rows = entries.map((entry, index) => {
+      const amount = showAmount && entry.totalSpend !== undefined 
+        ? entry.totalSpend.toFixed(2) 
         : ''
       return [
-        entry.rank.toString(),
+        (index + 1).toString(),
         entry.name,
         amount,
-        entry.count.toString(),
+        (entry.purchasesCount || 0).toString(),
       ]
     })
 
@@ -106,7 +110,7 @@ export default function LeaderboardWithWinner({
         showAmount={showAmount}
         amountLabel={amountLabel}
         countLabel={countLabel}
-        winnerRank={winner?.rank}
+        winnerId={winner?.id}
       />
 
       {showModal && winner && (
@@ -120,17 +124,17 @@ export default function LeaderboardWithWinner({
                   <span className="text-gray-400">Name:</span>
                   <span className="ml-2 text-white font-semibold text-lg">{winner.name}</span>
                 </div>
-                {showAmount && winner.amount !== undefined && (
+                {showAmount && winner.totalSpend !== undefined && (
                   <div>
                     <span className="text-gray-400">{amountLabel}:</span>
                     <span className="ml-2 text-yellow-400 font-bold text-lg">
-                      ${winner.amount.toFixed(2)}
+                      ${winner.totalSpend.toFixed(2)}
                     </span>
                   </div>
                 )}
                 <div>
                   <span className="text-gray-400">{countLabel}:</span>
-                  <span className="ml-2 text-white font-semibold">{winner.count}</span>
+                  <span className="ml-2 text-white font-semibold">{winner.purchasesCount || 0}</span>
                 </div>
               </div>
               <button

@@ -1,11 +1,11 @@
-import type { LeaderboardEntry } from '@/lib/leaderboard'
+import type { LeaderboardEntry } from '@/lib/whop/data'
 
 interface LeaderboardTableProps {
   entries: LeaderboardEntry[]
   showAmount?: boolean
   amountLabel?: string
   countLabel?: string
-  winnerRank?: number
+  winnerId?: string
 }
 
 export default function LeaderboardTable({
@@ -13,7 +13,7 @@ export default function LeaderboardTable({
   showAmount = false,
   amountLabel = 'Total Spent',
   countLabel = 'Count',
-  winnerRank,
+  winnerId,
 }: LeaderboardTableProps) {
   if (entries.length === 0) {
     return (
@@ -41,11 +41,12 @@ export default function LeaderboardTable({
           </tr>
         </thead>
         <tbody>
-          {entries.map((entry) => {
-            const isWinner = winnerRank === entry.rank
+          {entries.map((entry, index) => {
+            const rank = index + 1
+            const isWinner = winnerId === entry.id
             return (
               <tr
-                key={entry.rank}
+                key={entry.id}
                 className={`border-b border-gray-800 hover:bg-gray-800/50 transition-colors ${
                   isWinner
                     ? 'bg-yellow-500/10 border-yellow-500/50 shadow-lg shadow-yellow-500/20'
@@ -55,7 +56,7 @@ export default function LeaderboardTable({
                 <td className="py-4 px-4">
                   <div className="flex items-center gap-2">
                     <span className="text-gray-300 font-medium">
-                      {isWinner ? '👑' : entry.rank === 1 ? '🏆' : `#${entry.rank}`}
+                      {isWinner ? '👑' : rank === 1 ? '🏆' : `#${rank}`}
                     </span>
                   </div>
                 </td>
@@ -67,13 +68,13 @@ export default function LeaderboardTable({
               {showAmount && (
                 <td className="py-4 px-4 text-right">
                   <span className={isWinner ? 'text-yellow-400 font-bold text-lg' : 'text-gray-100 font-semibold'}>
-                    ${entry.amount?.toFixed(2) || '0.00'}
+                    ${entry.totalSpend?.toFixed(2) || '0.00'}
                   </span>
                 </td>
               )}
               <td className="py-4 px-4 text-right">
                 <span className={isWinner ? 'text-yellow-400 font-semibold' : 'text-gray-300'}>
-                  {entry.count}
+                  {entry.purchasesCount || 0}
                 </span>
               </td>
             </tr>

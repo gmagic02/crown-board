@@ -1,83 +1,189 @@
-import { whopsdk } from './sdk'
-import type { Payment, Affiliate, Membership } from '../whop'
+import { whopsdk } from "@/lib/whop-sdk";
 
-/**
- * Company analytics data structure
- */
-export interface CompanyAnalytics {
-  payments: Payment[]
-  affiliates: Affiliate[]
-  memberships: Membership[]
-}
+// Very generic types to avoid build failures.
+// You can tighten these later once you inspect Whop responses.
+export type LeaderboardEntry = {
+  id: string;
+  name: string;
+  handle?: string;
+  totalSpend?: number;
+  lastActiveAt?: string | null;
+  purchasesCount?: number;
+};
 
-/**
- * Loads all analytics data for a specific company from Whop API
- * 
- * @param companyId - The Whop company ID
- * @returns Company analytics including payments, affiliates, and memberships
- */
-export async function getCompanyAnalytics(companyId: string): Promise<CompanyAnalytics> {
-  try {
-    // Fetch all data in parallel from Whop API
-    const [membersResponse, purchasesResponse, affiliatesResponse] = await Promise.all([
-      whopsdk.members().list({ company_id: companyId }),
-      whopsdk.purchases().list({ company_id: companyId }),
-      whopsdk.affiliates().list({ company_id: companyId }),
-    ])
+export type CompanyAnalytics = {
+  topSpenders: LeaderboardEntry[];
+  topAffiliates: LeaderboardEntry[];
+  mostActiveMembers: LeaderboardEntry[];
+  randomWinnerPool: LeaderboardEntry[];
+};
 
-    // Normalize memberships data
-    const memberships: Membership[] = (membersResponse.data || []).map((member: any) => ({
-      id: member.id || String(Math.random()),
-      userId: member.user?.id || member.user_id || '',
-      userName: member.user?.username || member.user?.name || member.user?.email || 'Unknown User',
-      productId: member.product?.id || member.product_id || '',
-      productName: member.product?.name || 'Unknown Product',
-      status: member.status || 'unknown',
-      lastActivityAt: member.last_activity_at || member.lastActivityAt || member.joined_at || new Date().toISOString(),
-      activityCount: parseInt(member.activity_count || member.activityCount || 0, 10),
-    }))
+export async function getCompanyAnalytics(
+  companyId: string,
+  userId: string
+): Promise<CompanyAnalytics> {
+  // Optionally: verify access, etc. using userId if needed.
 
-    // Normalize payments data
-    const payments: Payment[] = (purchasesResponse.data || []).map((payment: any) => ({
-      id: payment.id || String(Math.random()),
-      userId: payment.user?.id || payment.user_id || '',
-      userName: payment.user?.username || payment.user?.name || payment.user?.email || 'Unknown User',
-      amount: parseFloat(payment.amount || payment.total_amount || 0),
-      currency: payment.currency || 'USD',
-      productId: payment.product?.id || payment.product_id || '',
-      productName: payment.product?.name || 'Unknown Product',
-      affiliateId: payment.affiliate?.id || payment.affiliate_id,
-      affiliateName: payment.affiliate?.username || payment.affiliate?.name,
-      createdAt: payment.date || payment.created_at || payment.createdAt || new Date().toISOString(),
-    }))
+  // 1) Get Whop resource clients (these are PROMISES!)
+  const [membersClient, purchasesClient, affiliatesClient] = await Promise.all([
+    whopsdk.members(),
+    whopsdk.purchases(),
+    whopsdk.affiliates(),
+  ]);
 
-    // Normalize affiliates data
-    const affiliates: Affiliate[] = (affiliatesResponse.data || []).map((affiliate: any) => ({
-      id: affiliate.id || affiliate.affiliate?.id || String(Math.random()),
-      userId: affiliate.affiliate?.id || affiliate.user_id || affiliate.id || '',
-      userName: affiliate.affiliate?.username || affiliate.affiliate?.name || affiliate.user?.username || 'Unknown Affiliate',
-      totalEarnings: parseFloat(affiliate.revenue || affiliate.total_earnings || affiliate.earnings || 0),
-      totalReferrals: parseInt(affiliate.referrals || affiliate.total_referrals || affiliate.count || 0, 10),
-    }))
+  // 2) Fetch data for this company
+  const [membersResponse, purchasesResponse, affiliatesResponse] =
+    await Promise.all([
+      membersClient.list({ company_id: companyId }),
+      purchasesClient.list({ company_id: companyId }),
+      affiliatesClient.list({ company_id: companyId }),
+    ]);
 
-    return {
-      payments,
-      affiliates,
-      memberships,
-    }
-  } catch (error: any) {
-    // Log error but don't expose sensitive info
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Error loading company analytics:', error.message)
-    }
-    
-    // If API fails, return empty arrays (not demo data)
-    // This ensures we don't show fake data when API is down
-    return {
-      payments: [],
-      affiliates: [],
-      memberships: [],
-    }
+  const members: any[] = (membersResponse as any)?.data ?? [];
+  const purchases: any[] = (purchasesResponse as any)?.data ?? [];
+  const affiliates: any[] = (affiliatesResponse as any)?.data ?? [];
+
+  // Helper to find member name from an id
+  const memberById = new Map<string, any>();
+  for (const m of members) {
+    if (!m) continue;
+    const id = m.id ?? m.member_id ?? m.user_id;
+    if (id) memberById.set(String(id), m);
   }
-}
 
+  // 3) Aggregate spend by member from purchases
+  const spendByMember = new Map<string, { total: number; count: number }>();
+
+  for (const p of purchases) {
+    if (!p) continue;
+
+    const memberId =
+      p.member_id ?? p.user_id ?? p.customer_id ?? p.buyer_id ?? null;
+    if (!memberId) continue;
+
+    const amount =
+      Number(p.amount) ||
+      Number(p.price) ||
+      Number(p.total) ||
+      Number(p.total_amount) ||
+      0;
+
+    const key = String(memberId);
+    const prev = spendByMember.get(key) ?? { total: 0, count: 0 };
+    spendByMember.set(key, {
+      total: prev.total + (Number.isFinite(amount) ? amount : 0),
+      count: prev.count + 1,
+    });
+  }
+
+  // 4) Build top spenders leaderboard
+  const topSpenders: LeaderboardEntry[] = Array.from(spendByMember.entries())
+    .map(([memberId, stats]) => {
+      const m = memberById.get(memberId) ?? {};
+      return {
+        id: memberId,
+        name:
+          m.username ||
+          m.handle ||
+          m.name ||
+          m.display_name ||
+          `Member ${memberId}`,
+        handle: m.handle ?? m.username ?? null,
+        totalSpend: stats.total,
+        purchasesCount: stats.count,
+        lastActiveAt:
+          m.last_active_at ?? m.last_seen_at ?? m.updated_at ?? null,
+      };
+    })
+    .sort((a, b) => (b.totalSpend ?? 0) - (a.totalSpend ?? 0))
+    .slice(0, 25);
+
+  // 5) Build most active members (by last_active_at or updated_at)
+  const mostActiveMembers: LeaderboardEntry[] = members
+    .map((m: any) => {
+      const id = m.id ?? m.member_id ?? m.user_id;
+      const name =
+        m.username || m.handle || m.name || m.display_name || `Member ${id}`;
+      const lastActive =
+        m.last_active_at ??
+        m.last_seen_at ??
+        m.last_login_at ??
+        m.updated_at ??
+        null;
+
+      return {
+        id: String(id ?? name),
+        name,
+        handle: m.handle ?? m.username ?? null,
+        lastActiveAt: lastActive,
+      } as LeaderboardEntry;
+    })
+    .filter((m) => m.id)
+    .sort((a, b) => {
+      const aTime = a.lastActiveAt ? Date.parse(a.lastActiveAt) : 0;
+      const bTime = b.lastActiveAt ? Date.parse(b.lastActiveAt) : 0;
+      return bTime - aTime;
+    })
+    .slice(0, 25);
+
+  // 6) Build top affiliates
+  // We assume affiliatesResponse.data has fields like:
+  //   id, name, username, total_revenue or total_earnings, referrals_count
+  const topAffiliates: LeaderboardEntry[] = affiliates
+    .map((a: any) => {
+      const id = a.id ?? a.affiliate_id ?? a.user_id;
+      const revenue =
+        Number(a.total_revenue) ||
+        Number(a.total_earnings) ||
+        Number(a.revenue) ||
+        0;
+
+      return {
+        id: String(id ?? a.name ?? a.username ?? "unknown_affiliate"),
+        name: a.name || a.username || a.handle || `Affiliate ${id}`,
+        handle: a.username ?? a.handle ?? null,
+        totalSpend: revenue,
+        purchasesCount:
+          a.referrals_count ?? a.sales_count ?? a.conversions_count ?? 0,
+      } as LeaderboardEntry;
+    })
+    .filter((a) => a.id)
+    .sort((a, b) => (b.totalSpend ?? 0) - (a.totalSpend ?? 0))
+    .slice(0, 25);
+
+  // 7) Random winner pool — use all members who have spent > 0 or have any activity
+  const randomWinnerPool: LeaderboardEntry[] = Array.from(
+    new Set([
+      ...topSpenders.map((m) => m.id),
+      ...mostActiveMembers.map((m) => m.id),
+    ])
+  )
+    .map((id) => {
+      const baseMember =
+        topSpenders.find((m) => m.id === id) ??
+        mostActiveMembers.find((m) => m.id === id) ??
+        null;
+
+      if (baseMember) return baseMember;
+
+      const m = memberById.get(id) ?? {};
+      return {
+        id,
+        name:
+          m.username ||
+          m.handle ||
+          m.name ||
+          m.display_name ||
+          `Member ${id}`,
+        handle: m.handle ?? m.username ?? null,
+      } as LeaderboardEntry;
+    })
+    .slice(0, 200); // keep it reasonable
+
+  return {
+    topSpenders,
+    topAffiliates,
+    mostActiveMembers,
+    randomWinnerPool,
+  };
+}

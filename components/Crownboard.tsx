@@ -1,18 +1,19 @@
+'use client'
+
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import LeaderboardWithWinner from './LeaderboardWithWinner'
-import type { LeaderboardEntry } from '@/lib/leaderboard'
-import type { DateRange } from '@/lib/leaderboard'
+import type { CompanyAnalytics } from '@/lib/whop/data'
 
 type TabType = 'spenders' | 'affiliates' | 'active'
 
 interface CrownboardProps {
   companyId: string
   userId: string
-  topSpenders: LeaderboardEntry[]
-  topAffiliates: LeaderboardEntry[]
-  activeMembers: LeaderboardEntry[]
-  activeTab: TabType
-  dateRange: DateRange
+  topSpenders: CompanyAnalytics['topSpenders']
+  topAffiliates: CompanyAnalytics['topAffiliates']
+  mostActiveMembers: CompanyAnalytics['mostActiveMembers']
+  randomWinnerPool: CompanyAnalytics['randomWinnerPool']
 }
 
 export default function Crownboard({
@@ -20,10 +21,12 @@ export default function Crownboard({
   userId,
   topSpenders,
   topAffiliates,
-  activeMembers,
-  activeTab,
-  dateRange,
+  mostActiveMembers,
+  randomWinnerPool,
 }: CrownboardProps) {
+  const searchParams = useSearchParams()
+  const activeTab = (searchParams.get('tab') as TabType) || 'spenders'
+  const dateRange = (searchParams.get('range') || 'all') as string
   return (
     <div className="min-h-screen bg-gray-900 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
@@ -90,6 +93,7 @@ export default function Crownboard({
               tab={activeTab}
               range={dateRange}
               companyId={companyId}
+              randomWinnerPool={randomWinnerPool}
             />
           )}
           {activeTab === 'affiliates' && (
@@ -101,16 +105,18 @@ export default function Crownboard({
               tab={activeTab}
               range={dateRange}
               companyId={companyId}
+              randomWinnerPool={randomWinnerPool}
             />
           )}
           {activeTab === 'active' && (
             <LeaderboardWithWinner
-              entries={activeMembers}
+              entries={mostActiveMembers}
               showAmount={false}
               countLabel="Activity Count"
               tab={activeTab}
               range={dateRange}
               companyId={companyId}
+              randomWinnerPool={randomWinnerPool}
             />
           )}
         </div>
