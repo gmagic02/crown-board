@@ -11,6 +11,7 @@ interface LeaderboardWithWinnerProps {
   countLabel?: string
   tab?: string
   range?: string
+  companyId?: string
 }
 
 export default function LeaderboardWithWinner({
@@ -20,6 +21,7 @@ export default function LeaderboardWithWinner({
   countLabel = 'Count',
   tab = 'spenders',
   range = 'all',
+  companyId = 'unknown',
 }: LeaderboardWithWinnerProps) {
   const [winner, setWinner] = useState<LeaderboardEntry | null>(null)
   const [showModal, setShowModal] = useState(false)
@@ -67,7 +69,7 @@ export default function LeaderboardWithWinner({
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `whop-leaderboard-${tab}-${range}.csv`
+    link.download = `crownboard-${companyId}-${tab}-${range}.csv`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)

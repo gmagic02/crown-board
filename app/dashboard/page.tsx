@@ -1,39 +1,36 @@
+import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import Link from 'next/link'
-import { verifyWhopTokenOrRequest, loadCrownboardStatsForCompany } from '@/lib/whop'
-import {
-  getTopSpenders,
-  getTopAffiliates,
-  getMostActiveMembers,
-  type DateRange,
-} from '@/lib/leaderboard'
-import LeaderboardWithWinner from '@/components/LeaderboardWithWinner'
+import { verifyUserToken } from '@/lib/whop/sdk'
 
 export const dynamic = 'force-dynamic'
-
-type TabType = 'spenders' | 'affiliates' | 'active'
 
 interface DashboardPageProps {
   searchParams: Promise<{ tab?: string; range?: string }>
 }
 
-function ErrorState({ message }: { message: string }) {
-  return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-      <div className="text-center max-w-md">
-        <h1 className="text-2xl font-bold text-gray-100 mb-4">Crownboard</h1>
-        <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4 mb-4">
-          <p className="text-red-200 text-sm">{message}</p>
-        </div>
-        <p className="text-gray-400 text-sm">
-          Please ensure you're opening Crownboard from within Whop.
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function DemoState({ searchParams }: { searchParams: Promise<{ tab?: string; range?: string }> }) {
+/**
+ * Legacy dashboard route - redirects to company-specific route if token exists
+ * Otherwise shows demo state for direct browser access
+ */
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+  const headersList = await headers()
+  
+  // Try to get companyId from token
+  try {
+    const tokenData = await verifyUserToken(headersList)
+    
+    // If we have a token with companyId, redirect to company route
+    if (tokenData.companyId) {
+      const params = await searchParams
+      const tab = params.tab || 'spenders'
+      const range = params.range || 'all'
+      redirect(`/dashboard/${tokenData.companyId}?tab=${tab}&range=${range}`)
+    }
+  } catch {
+    // Token missing or invalid - show demo for direct access
+  }
+  
+  // No valid token/companyId - show demo state
   return (
     <div className="min-h-screen bg-gray-900 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
@@ -53,183 +50,6 @@ function DemoState({ searchParams }: { searchParams: Promise<{ tab?: string; ran
         </div>
       </div>
     </div>
-  )
-}
-
-export default async function DashboardPage({ searchParams }: DashboardPageProps) {
-  const headersList = await headers()
-  const params = await searchParams
-  
-  // 1) Get Whop token from headers
-  const token = headersList.get('x-whop-user-token')
-  
-  // 2) If there is no token at all, this is NOT being opened inside Whop → show demo view
-  if (!token) {
-    return <DemoState searchParams={searchParams} />
-  }
-  
-  // 3) If there is a token, verify it and extract the tenant/company context
-  const session = await verifyWhopTokenOrRequest(headersList)
-  
-  // Extract companyId from verified session
-  const companyId = session?.companyId ?? null
-  
-  // 4) If verification fails or we can't resolve a tenant, show error instead of demo
-  if (!session || !companyId) {
-    console.error('Crownboard Whop session has no company/tenant id', session)
-    return <ErrorState message="Missing Whop company context. Please ensure you're opening Crownboard from within Whop." />
-  }
-  
-  // 5) Using companyId, load REAL data for this creator from Whop API
-  const stats = await loadCrownboardStatsForCompany(companyId)
-  
-  // Determine active tab and date range from search params
-  const activeTab: TabType = (params.tab as TabType) || 'spenders'
-  const dateRange: DateRange = (params.range as DateRange) || 'all'
-
-  // Calculate leaderboards with date range filter using REAL data
-  const topSpenders = getTopSpenders(stats.payments, dateRange)
-  const topAffiliates = getTopAffiliates(stats.payments, dateRange)
-  const mostActive = getMostActiveMembers(stats.memberships, dateRange)
-
-  // Render the real dashboard with actual creator data
-  return (
-    <div className="min-h-screen bg-gray-900 p-4 md:p-8">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-100 mb-4">
-          Crownboard
-        </h1>
-        <p className="text-gray-400 text-lg mb-6 max-w-2xl">
-          Crownboard helps creators rank their top supporters, affiliates, and most active members in real time.
-        </p>
-
-        {/* Date Range Filter */}
-        <div className="mb-6 flex flex-wrap gap-2">
-          <DateRangeButton
-            href={`/dashboard?tab=${activeTab}&range=today`}
-            isActive={dateRange === 'today'}
-            label="Today"
-          />
-          <DateRangeButton
-            href={`/dashboard?tab=${activeTab}&range=7d`}
-            isActive={dateRange === '7d'}
-            label="Last 7 days"
-          />
-          <DateRangeButton
-            href={`/dashboard?tab=${activeTab}&range=30d`}
-            isActive={dateRange === '30d'}
-            label="Last 30 days"
-          />
-          <DateRangeButton
-            href={`/dashboard?tab=${activeTab}&range=all`}
-            isActive={dateRange === 'all'}
-            label="All time"
-          />
-        </div>
-
-        {/* Tabs */}
-        <div className="mb-6 border-b border-gray-700">
-          <nav className="flex space-x-1">
-            <TabButton
-              href={`/dashboard?tab=spenders&range=${dateRange}`}
-              isActive={activeTab === 'spenders'}
-              label="Top Spenders"
-            />
-            <TabButton
-              href={`/dashboard?tab=affiliates&range=${dateRange}`}
-              isActive={activeTab === 'affiliates'}
-              label="Top Affiliates"
-            />
-            <TabButton
-              href={`/dashboard?tab=active&range=${dateRange}`}
-              isActive={activeTab === 'active'}
-              label="Most Active"
-            />
-          </nav>
-        </div>
-
-        {/* Leaderboard Content */}
-        <div className="bg-gray-800 rounded-lg p-6 shadow-lg">
-          {activeTab === 'spenders' && (
-            <LeaderboardWithWinner
-              entries={topSpenders}
-              showAmount={true}
-              amountLabel="Total Spent"
-              countLabel="Purchases"
-              tab={activeTab}
-              range={dateRange}
-            />
-          )}
-          {activeTab === 'affiliates' && (
-            <LeaderboardWithWinner
-              entries={topAffiliates}
-              showAmount={true}
-              amountLabel="Total Earnings"
-              countLabel="Referrals"
-              tab={activeTab}
-              range={dateRange}
-            />
-          )}
-          {activeTab === 'active' && (
-            <LeaderboardWithWinner
-              entries={mostActive}
-              showAmount={false}
-              countLabel="Activity Count"
-              tab={activeTab}
-              range={dateRange}
-            />
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-interface TabButtonProps {
-  href: string
-  isActive: boolean
-  label: string
-}
-
-function TabButton({ href, isActive, label }: TabButtonProps) {
-  return (
-    <Link
-      href={href}
-      className={`
-        px-4 py-2 text-sm font-medium transition-colors
-        ${
-          isActive
-            ? 'text-blue-400 border-b-2 border-blue-400'
-            : 'text-gray-400 hover:text-gray-300'
-        }
-      `}
-    >
-      {label}
-    </Link>
-  )
-}
-
-interface DateRangeButtonProps {
-  href: string
-  isActive: boolean
-  label: string
-}
-
-function DateRangeButton({ href, isActive, label }: DateRangeButtonProps) {
-  return (
-    <Link
-      href={href}
-      className={`
-        px-4 py-2 text-sm font-medium rounded-md transition-colors
-        ${
-          isActive
-            ? 'bg-blue-600 text-white'
-            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-        }
-      `}
-    >
-      {label}
-    </Link>
   )
 }
 
