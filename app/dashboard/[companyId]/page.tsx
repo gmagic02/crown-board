@@ -76,13 +76,16 @@ export default async function DashboardPage({ params }: PageProps) {
   // At this point we have a companyId and a userId (real or dev)
   const analytics = await getCompanyAnalytics(companyId, userId);
 
-  // Pass real data into your existing UI.
-  // Using "as any" here to avoid type mismatch with your existing Crownboard props.
+  // Pass real data with mode="live" to show actual analytics
   return (
     <Crownboard
+      mode="live"
       companyId={companyId}
       userId={userId}
-      {...(analytics as any)}
+      topSpenders={analytics.topSpenders}
+      topAffiliates={analytics.topAffiliates}
+      mostActiveMembers={analytics.mostActiveMembers}
+      randomWinnerPool={analytics.randomWinnerPool}
     />
   );
 }

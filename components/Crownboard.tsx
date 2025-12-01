@@ -8,25 +8,53 @@ import type { CompanyAnalytics } from '@/lib/whop/data'
 type TabType = 'spenders' | 'affiliates' | 'active'
 
 interface CrownboardProps {
-  companyId: string
-  userId: string
-  topSpenders: CompanyAnalytics['topSpenders']
-  topAffiliates: CompanyAnalytics['topAffiliates']
-  mostActiveMembers: CompanyAnalytics['mostActiveMembers']
-  randomWinnerPool: CompanyAnalytics['randomWinnerPool']
+  mode: 'live' | 'demo'
+  companyId?: string
+  userId?: string
+  topSpenders?: CompanyAnalytics['topSpenders']
+  topAffiliates?: CompanyAnalytics['topAffiliates']
+  mostActiveMembers?: CompanyAnalytics['mostActiveMembers']
+  randomWinnerPool?: CompanyAnalytics['randomWinnerPool']
 }
 
 export default function Crownboard({
-  companyId,
-  userId,
-  topSpenders,
-  topAffiliates,
-  mostActiveMembers,
-  randomWinnerPool,
+  mode,
+  companyId = '',
+  userId = '',
+  topSpenders = [],
+  topAffiliates = [],
+  mostActiveMembers = [],
+  randomWinnerPool = [],
 }: CrownboardProps) {
   const searchParams = useSearchParams()
   const activeTab = (searchParams.get('tab') as TabType) || 'spenders'
   const dateRange = (searchParams.get('range') || 'all') as string
+
+  // Demo mode: Show marketing placeholder
+  if (mode === 'demo') {
+    return (
+      <div className="min-h-screen bg-gray-900 p-4 md:p-8">
+        <div className="max-w-6xl mx-auto">
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-100 mb-4">
+            Crownboard
+          </h1>
+          <div className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
+            You're viewing demo data. Install and open Crownboard inside Whop to see your real community stats.
+          </div>
+          <p className="text-gray-400 text-lg mb-6 max-w-2xl">
+            Crownboard helps creators rank their top supporters, affiliates, and most active members in real time.
+          </p>
+          <div className="bg-gray-800 rounded-lg p-6 shadow-lg">
+            <div className="text-center py-12 text-gray-400">
+              <p>Install Crownboard in your Whop business to get started.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Live mode: Show real analytics data
   return (
     <div className="min-h-screen bg-gray-900 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
